@@ -6,7 +6,7 @@ import time
 
 
 '''
-cromossomo -> (x,y) - estado (ativo, nao ativo) - raio - sobreposicao - populacao -  radiacao de energia
+cromossomo -> (x,y) - estado (ativo, nao ativo) - raio  - populacao -  radiacao de energia - sobreposicao
 considerar area de ddos = 4000 km -> lado 64 
 0,7,14,15,23,31,39,47
 '''																			
@@ -15,6 +15,12 @@ RADIUS = 100
 
 #antena de telefonia movel ERB
 
+class mestre():
+	def __init__(self):
+		pass
+
+
+
 class pop():
 	def __init__(self):
 		self.SIZE_POP = 500
@@ -22,12 +28,10 @@ class pop():
 		self.dbi = 255
 
 	def init_n_pop(self):
-		POP_1 = self.init_pop()
+		POP_1 = self.aux_init_pop()
 		POP_2 = self.init_pop()
 		POP_3 = self.init_pop()
 		POP_4 = self.init_pop()
-
-		print("Tam da população 1, 2, 3 e 4 :", len(POP_1), len(POP_2), len(POP_3), len(POP_4))
 
 		cont = 0
 		for item in (POP_4):
@@ -35,10 +39,14 @@ class pop():
 			if(a == 1):
 				cont += 1
 
-	
 		for item in (POP_4):
-			self.calc_fitness(item)
+			calc_fitness(item)
 	
+	def aux_init_pop(self):
+		POP = self.init_pop()
+		self.checaColisao(POP)
+
+		return POP
 
 	def init_individual(self):
 		llist_indi = []
@@ -46,16 +54,52 @@ class pop():
 			pos = getrandbits(1) # pares entre 0 e 9
 			llist_indi.append(pos)
 
-		return llist_indi
+		return llist_indi 
 
 	def init_pop(self):
 		#individuo 1 da pop é usado para criar o primeiro modelo de probabilidade
 		list_pop = []
 		for i in range(0, self.SIZE_POP):
 			baby = self.init_individual()
-			list_pop.append(baby)
+			if (baby in list_pop):
+				while (baby in list_pop):
+					baby = self.init_individual()
+			else:
+				list_pop.append(baby)
 
 		return list_pop
+
+
+	def checaColisao(self, populacao):
+		for erb in populacao:
+ 			p1 = point_space(erb)
+ 			x1, y1 = p1
+ 			radius_1 = []
+
+ 			for i in range(15,22):
+ 				radius_1.append(erb[i])
+
+ 			for others_erb in populacao:
+ 				p2 = point_space(others_erb)
+ 				x2, y2 = p2
+ 				cateto1 = x2 - x1
+ 				cateto2 = y2 - y1
+ 				distancia = sqrt( pow(cateto1, 2) + pow(cateto2, 2) )
+ 				radius_2 = []
+ 				for k in range(15, 22):
+ 					radius_2.append(others_erb[k])
+
+ 				raio1 = convert_binary(radius_1)
+ 				raio2 = convert_binary(radius_2)
+ 				if(distancia < (raio1 + raio2)):
+ 					val_col = self.area_intersec(erb, others_erb)
+ 					str_col = conv(val_col, 0)
+ 					print(str_col ,'->', len(str_col))
+ 					for j in range(len(str_col), 0):
+ 						aux_list[j]= str_col[j]
+ 				else:
+ 					print("nao colidiu")
+
 
 	def create_model(self):
 		#M[i] = (1 - alfa) * Xi + alfa * (average half best individuals)
@@ -72,47 +116,8 @@ class pop():
 			-> soma da area de sobreposição da antena 
 			-> qtd de antenas ativas
 	'''
-	def calc_fitness(self, individuo):
-		xradius = []
-		for i in range(15 ,22):
-			xradius.append(individuo[i])
+	
 
-		area_coverage = self.area_hexa(self.convert_binary(xradius))
-
-		radian = []
-		for i in range(47, 54):
-			radian.append(individuo[i])
-
-		P_tot = self.convert_binary(radian)
-		P_max = 255
-		sobre = 1.0
-		n_sbr = 1.0
-		
-		F_fit = (AREA - ( area_coverage / AREA ) ) + (sobre / AREA) + (P_tot / (n_sbr * P_max) )
-		print(F_fit)
-
-
-	def point_space(self, individuo):
-		x = []
-		for i in range(0 ,6):
-			x.append(individuo[i])
-		a = self.convert_binary(x)
-
-		y = []
-		for i in range(7 ,13):
-			y.append(individuo[i])
-		b = self.convert_binary(y)
-		ponto = a,b
-		return ponto
-
-	def convert_binary(self, binary):
-		str1 = ''.join(str(x) for x in binary)
-		n = int(str1, 2)
-		return n
-
-	def conv_radius_area(self):
-		area = pi * pow(RADIUS, 2)
-		return (area/1000) #retorna area em km
 
 	def ERB_min(self, coverage):
 		erb_min = ceil(AREA / coverage)
@@ -127,32 +132,75 @@ class pop():
 		for i in range(15 ,22):
 			radius_2.append(individuo2[i])
 
-		if (radius_1 > radius_2):
-			area = pi * pow(radius_2, 2)
+		R1 = convert_binary(radius_1)
+		R2 = convert_binary(radius_2)
 
-		if (radius_2 > radius_1):
-			area = pi * pow(radius_1, 2)
+		if (R1 > R2):
+			area = pi * pow(R2, 2)
 
-		if (radius_1 == radius_2):
-			x = ((2 * pi * pow(radius_1, 2)) / 3) - ((sqrt(3) * pow(radius_1, 2)) / 2)
+		if (R2 > R1):
+			area = pi * pow(R1, 2)
+		
+		if (R1 == R2):
+			area = ((2 * pi * pow(R1, 2)) / 3) - ((sqrt(3) * pow(R1, 2)) / 2)
 
-		print("area:", x/1000)
+		x = ceil(area/1000)
+
 		return x
 # area do hexagono é igual a area de 6 triangulos equilateros  com lado igual a raio
+	
 	def area_hexa(self, radius):
 		area = (3 * pow(radius,2) * sqrt(3) ) / 2
 		return area
 
+#funcoes comuns -> organizar classe posteriormente
+def point_space(individuo):
+	x = []
+	for i in range(0 ,6):
+		x.append(individuo[i])
+	a = convert_binary(x)
+
+	y = []
+	for i in range(7 ,13):
+		y.append(individuo[i])
+	b = convert_binary(y)
+	ponto = a,b
+	return ponto
+
+def convert_binary( binary):
+	str1 = ''.join(str(x) for x in binary)
+	n = int(str1, 2)
+	return n
+
+def conv_radius_area():
+	area = pi * pow(RADIUS, 2)
+	return (area/1000) #retorna area em km
+
+def calc_fitness(individuo):
+	xradius = []
+	for i in range(15 ,22):
+		xradius.append(individuo[i])
+
+	obj = pop()
+	area_coverage = obj.area_hexa(convert_binary(xradius))
+
+	radian = []
+	for i in range(47, 54):
+		radian.append(individuo[i])
+
+	P_tot = convert_binary(radian)
+	P_max = 255
+	sobre = 1.0
+	n_sbr = 1.0
+		
+	F_fit = (AREA - ( area_coverage / AREA ) ) + (sobre / AREA) + (P_tot / (n_sbr * P_max) )
 
 
 class slayer():
 	def __init__(self):
 		pass
 		
-
-
-def conv():
-	n=int(input('numero decimal: '))
+def conv(n, flag):
 	x=n
 	k=[]
 
@@ -167,7 +215,12 @@ def conv():
 	for j in k[::-1]:
 		string=string+str(j)
 
-	print('The binary no. for %d is %s'%(x, string))
+	if flag:
+		return string
+	else:
+		return k
+
+
 
 
 def main():
