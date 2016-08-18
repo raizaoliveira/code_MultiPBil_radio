@@ -359,28 +359,6 @@ def main():
 	rank = comm.Get_rank()
 	#random.seed() #inicia a semente dos número pseudo randômicos
 
-	'''
-	POP_1 = initialize_population();/*Inicializa as populacoes aleatoriamente*/
-	POP_2 = initialize_population();
-	POP_3 = initialize_population();
-	POP_4 = initialize_population();
-
-	best1 = mmm(POP_1);/*Calcula a media da metada dos melhores individuos de cada populacao*/
-	best2 = mmm(POP_2);
-	best3 = mmm(POP_3);
-	best4 = mmm(POP_4);
-	
-
-	/*Cria os modelos probabilisticos*/
-	N1 = create_models1(POP_1, modelo1, 25, best1);
-	printf("N1 %d\n", N1);
-	N2 = create_models1(POP_2, modelo2, 50, best2);
-	printf("N2 %d\n", N2);
-	N3 = create_models1(POP_3, modelo3, 75, best3);
-	printf("N3 %d\n", N3);
-	N4 = create_models1(POP_4, modelo4, 100, best4);
-	printf("N4 %d\n", N4);
-	'''
 	if rank == 0:
 		'''
 		inicialize as populacoes
