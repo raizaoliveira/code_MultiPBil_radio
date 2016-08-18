@@ -281,7 +281,7 @@ def fill_list_bin(list_str):
 	return list_aux
 
 
-class model(self):
+class model():
 	def __init__(self, SIZE):
 		self.SIZE =  SIZE
 		self.alpha = 0.05
@@ -294,65 +294,62 @@ class model(self):
 	def make_hamming(self, ind1, ind2):
 		#se P2 < F entao o individuo2 é usado para gerar outro modelo, senao avalia-se o proximo individuo
 		p = 0
-		for i in range (0, self.SIZE):
+		#print('len ', len(ind1), len(ind2))
+		for i in range (0, 54):
 			if ind1[i] == ind2[i]:
 				p+=1
 
-		P2 = (p * 100) / self.SIZE
+		P2 = (p * 100) / 54
 		return P2
 
 	def drop_pop(self, X):
 		list(P)
 		for i in range (0, self.SIZE):
-			P[i+1] = P[i] * (1.0 - self.alpha) + X[i] * self.alpha;
+			P[i+1] = P[i] * (1.0 - self.alpha) + X[i] * self.alpha
 
-	def create_model(self):
-		for i in range 
+	def create_model(self, POP, tam, average, F):
+		aux = 0
+		print('pop[0][0]',POP[0][0])
+		model = []
+		ant_pop = []
+		for item in POP:
+			if aux == 0:
+				print('item', item)
+				for j in range(0, 54):
+					x =  (((0.5 - self.alpha) * item[j] ) + (self.alpha * average)) / 100
+					model.append(x)
+					ant_pop.append(item[j])
+							
+			if aux > 0:
+				#print('\nant',ant_pop, '\natual', item)
+				P2 = self.make_hamming(ant_pop, item)
+				print(P2)
+				del ant_pop[:]
+				if P2 < F:
+					print('new model')
+					for j in range (0, 54):
+						x = ((0.5 - self.alpha) * item[j] + self.alpha * average) / 100
+						model.append(x)
+
+				for j in range (0, 54):
+					ant_pop.append(item[j])
+			aux += 1
+			#print('criado', len(model), 'modelos')
+		return model
+				
+		
+
+
+
+
+
 '''
-
-
-/*criacao dos modelos probabilisticos
+criacao dos modelos probabilisticos
 tem como parametros a matiz de populacao
 matriz do modelo
 F -> porcentagem de similaridade (25, 50, 75 ou 100)
 average -> media da metade dos melhores de cada populacao
 retorna a quantidade de modelos criados para cada populacao
-*/
-int create_models1(char **pop, double modelo[][SIZE], int F, double average)
-{
-	double P2;
-	int i, j;
-	int nmodel;
-	nmodel = 0;
-	for(i = 0; i < POPULATION; i++)
-	{
-		if( i == 0)
-		{
-			nmodel++;
-			for(j = 0; j < SIZE; j++)
-			{
-				modelo[nmodel][j] = ((0.5 - alpha) * convert(pop[i][j]) + alpha * average) / 100;
-			}
-		}
-		if( i > 0)
-		{
-			P2 = make_hamming(pop[i - 1], pop[i]);/*distancia de hamming no individuo  corrente com o anterior*/
-			if(P2 < F)
-			{
-				nmodel++;
-				for(j = 0; j < SIZE; j++)
-				{
-					modelo[nmodel][j] = ((0.5 - alpha) * convert(pop[i][j]) + alpha * average) / 100;
-				}
-			}
-
-		}
-	}
-	return nmodel;
-	
-}
-
-
 '''
 
 def main():
@@ -398,16 +395,32 @@ def main():
 		POP_3 = obj.init_n_pop()
 		POP_4 = obj.init_n_pop()
 		llist_mmm = obj.cal_mmm_populations(POP_1, POP_2, POP_3, POP_4)
-		print('llist', llist_mmm)
+		#print('llist', llist_mmm)
+
+		obm = model(54)
+		model_1 = obm.create_model(POP_1, 54, llist_mmm[0], 25)
+		model_2 = obm.create_model(POP_2, 54, llist_mmm[1], 50)
+		model_3 = obm.create_model(POP_3, 54, llist_mmm[2], 75)
+		model_4 = obm.create_model(POP_4, 54, llist_mmm[3], 100)
+		#data ={'a':3, 'b':3.14}
+		comm.send(model_1,dest=1,tag=1)
+		comm.send(model_2,dest=2,tag=2)
+		#comm.send(model_3,dest=3,tag=3)
 		fim = time.time()
 
-		print("time", fim - ini);
+		print("time", fim - ini)
 	if rank == 1:
+		data = comm.recv(source=0, tag=1)
 		print('escravo 1')
+		print(len(data))
 	if rank == 2:
+		data = comm.recv(source=0, tag=2)
 		print('escravo 2')
+		print(len(data))
 	if rank == 3:
+		#data = comm.recv(source=0, tag=3)
 		print('escravo 3')
+		#print(len(data))
 
        
 
