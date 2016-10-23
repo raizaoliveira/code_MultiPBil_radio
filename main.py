@@ -1,28 +1,165 @@
+#!/usr/bin/env python
+# -*- coding: utf-8 -*-
 from random import getrandbits, random
 from math import pi, pow, ceil
 from math import sqrt
 from mpi4py import MPI
 import time 
 import matplotlib.pyplot as plt
+import matplotlib.collections
+plt.rcParams.update({'figure.max_open_warning': 100})
+
+import interface as UI
+from PyQt4 import QtCore, QtGui
+import sys
+
+GENE = 55
 
 
+class mid(QtGui.QMainWindow, UI.Ui_main_win):
+	def __init__(self, parent=None):
+		super(mid,self).__init__(parent)
+		self.setupUi(self)
+		self.connect(self.btn_exe, QtCore.SIGNAL("clicked()"), self.execut)   
+	def execut(self):
+		AREA = int(self.lbl_valarea.text())
+		MUT_SH = float(self.lbl_valmultsh.text())
+		MUT_PROB = float(self.lbl_valmultprob.text())
+		ALPHA = float(self.lbl_valalpha.text())
+		SIZE_POP = int(self.spinBox.text())
+		print(AREA, MUT_SH, MUT_PROB, ALPHA, 'size pop', SIZE_POP)
+		init_exec(AREA, MUT_SH, MUT_PROB, ALPHA, 10)
+
+
+def init_exec(area, mult_sh, mult_prob, alpha, size_pop):
+	ini = time.time()
+	comm = MPI.COMM_WORLD
+	rank = comm.Get_rank()
+	print('init')
+
+	if rank == 0:
+		print('mestre')
+		obj = pop(size_pop, area)
+		POP_1 = obj.init_n_pop()
+		POP_2 = obj.init_n_pop()
+		POP_3 = obj.init_n_pop()
+		POP_4 = obj.init_n_pop()
+		llist_mmm = obj.cal_mmm_populations(POP_1, POP_2, POP_3, POP_4)
+
+		obm = model(size_pop, alpha)
+		model_1 = obm.create_model(POP_1, llist_mmm[0], 25)
+		model_2 = obm.create_model(POP_2, llist_mmm[1], 50)
+		model_3 = obm.create_model(POP_3, llist_mmm[2], 75)
+		
+		print('enviado', len(model_1), 'para escravo 1')
+		comm.send(model_1,dest=1,tag=1)
+		print('enviado', len(model_2), 'para escravo 2')
+		comm.send(model_2,dest=2,tag=2)
+		print('enviado', len(model_3), 'para escravo 3')
+		comm.send(model_3,dest=3,tag=3)
+		
+		data_1 = comm.recv(source=1, tag=1)
+		data_2 = comm.recv(source=2, tag=2)
+		data_3 = comm.recv(source=3, tag=3)
+
+		graph(data_1, 'Resultado enviado pelo escravo 1')
+		graph(data_2, 'Resultado enviado pelo escravo 2')
+		graph(data_3, 'Resultado enviado pelo escravo 3')
+
+
+
+
+		fim = time.time()
+
+		print("time", (fim - ini)/60)
+	if rank == 1:
+		data = comm.recv(source=0, tag=1)
+		print('escravo 1')
+		slave1 = slave(size_pop, alpha, mult_prob, mult_sh)
+		lista = slave1.new_pop(data)
+		counter = 0
+		while counter < 10:
+			lista = slave1.new_pop(data)
+			bests = []
+			for item in lista:
+				best = 0
+				individuo = item
+				for elemento in item:
+					fit = calc_fitness(elemento, area, size_pop)
+					if fit > best:
+						best = fit
+						individuo = elemento
+				bests.append(individuo)
+		
+				
+			bestall = bests[0]
+			data = slave1.update_model(bestall, data)
+			counter += 1
+		comm.send(item,dest=0,tag=1)
+	
+	if rank == 2:
+		data = comm.recv(source=0, tag=2)
+		print('escravo 2')
+		slave2 = slave(size_pop, alpha, mult_prob, mult_sh)
+		lista = slave2.new_pop(data)
+		counter = 0
+		while counter < 10:
+			lista = slave2.new_pop(data)
+			bests = []
+			for item in lista:
+				best = 0
+				individuo = item
+				for elemento in item:
+					fit = calc_fitness(elemento, area, size_pop)
+					if fit > best:
+						best = fit
+						individuo = elemento
+				bests.append(individuo)
+		
+				
+			bestall = bests[0]
+			data = slave2.update_model(bestall, data)
+			counter += 1
+
+		comm.send(item,dest=0,tag=2)
+
+	if rank == 3:
+		data = comm.recv(source=0, tag=3)
+		print('escravo 3')
+		slave3 = slave(size_pop, alpha, mult_prob, mult_sh)
+		lista = slave3.new_pop(data)
+		counter = 0
+		while counter < 10:
+			lista = slave3.new_pop(data)
+			bests = []
+			for item in lista:
+				best = 0
+				individuo = item
+				for elemento in item:
+					fit = calc_fitness(elemento, area, size_pop)
+					if fit > best:
+						best = fit
+						individuo = elemento
+				bests.append(individuo)
+		
+				
+			bestall = bests[0]
+			data = slave3.update_model(bestall, data)
+			counter += 1
+		comm.send(item,dest=0,tag=3)
 
 '''
 cromossomo -> (x,y) - estado (ativo, nao ativo) - raio  - populacao -  radiacao de energia - sobreposicao
 considerar area de ddos = 4000 km -> lado 64 
 0 ,7,14, 15, 23,31,39,47
 '''																			
-AREA = 4000 # aproximadamente area de dourados 
-RADIUS = 100
-MUT_PROB = 0.3
-MUT_SH = 0.04
 
 #antena de telefonia movel ERB
 
 class pop():
-	def __init__(self):
-		self.SIZE_POP = 50
-		self.lenght_gene = 55
+	def __init__(self, pop_size, area):
+		self.SIZE_POP = pop_size
+		self.AREA = area
 		self.dbi = 255
 
 	#inicializa as populacoes
@@ -34,7 +171,7 @@ class pop():
 	#Gera e retorna um cromossomo
 	def init_individual(self):
 		llist_indi = []
-		for i in range(1, self.lenght_gene):
+		for i in range(1, GENE):
 			pos = getrandbits(1) # pares entre 0 e 9
 			llist_indi.append(pos)
 
@@ -86,7 +223,7 @@ class pop():
 
 
 	def ERB_min(self, coverage):
-		erb_min = ceil(AREA / coverage)
+		erb_min = ceil(self.AREA / coverage)
 		return erb_min
 
 	def area_intersec(self, individuo1, individuo2):
@@ -122,16 +259,137 @@ class pop():
 	#retorna uma lista com a mmm das populacoes
 	def cal_mmm_populations(self, pop1, pop2, pop3, pop4):
 		list_mmm = []
-		x = mmm(pop1)
+		x = self.mmm(pop1)
 		list_mmm.append(x)
-		x = mmm(pop2)
+		x = self.mmm(pop2)
 		list_mmm.append(x)
-		x = mmm(pop3)
+		x = self.mmm(pop3)
 		list_mmm.append(x)
-		x = mmm(pop4)
+		x = self.mmm(pop4)
 		list_mmm.append(x)
 		return list_mmm
-		
+
+	#calcula a media da metade dos melhores individuos de uma populacao
+	def mmm(self, population):
+		best = []
+		for i in range(0, len(population)):
+			best.append(0)
+		k = 0
+		for item in population:
+			best[k] = calc_fitness(item, self.AREA, self.SIZE_POP)
+			k+=1
+		best.sort()
+		som = 0;
+		lim = ceil(len(population)/ 2) 
+		i = 0
+		while i < lim:
+			val = best[i]
+			som += val
+			i+=1
+
+		som = som / lim;
+		return som;
+
+class model():
+	def __init__(self, SIZE, alpha):
+		self.SIZE =  SIZE
+		self.alpha = alpha
+
+	def make_hamming(self, ind1, ind2):
+		#se P2 < F entao o individuo2 é usado para gerar outro modelo, senao avalia-se o proximo individuo
+		p = 0
+		for i in range (0, GENE - 1):
+			if ind1[i] == ind2[i]:
+				p+=1
+
+		P2 = (p * 100) / 54
+		return P2
+
+	def drop_pop(self, X):
+		list(P)
+		for i in range (0, self.SIZE):
+			P[i+1] = P[i] * (1.0 - self.alpha) + X[i] * self.alpha
+
+	'''
+	criacao dos modelos probabilisticos
+	tem como parametros a matiz de populacao
+	matriz do modelo
+	F -> porcentagem de similaridade (25, 50, 75 ou 100)
+	average -> media da metade dos melhores de cada populacao
+	retorna a quantidade de modelos criados para cada populacao
+	'''
+
+	def create_model(self, POP, average, F):
+		aux = 0
+		model = []
+		ant_pop = []
+		average = average / 10
+		for item in POP:
+			if aux == 0:
+				for j in range(0, GENE-1):
+					x =  (((0.5 - self.alpha) * item[j] ) + (self.alpha * average)) / 100
+					model.append(x)
+					ant_pop.append(item[j])							
+			if aux > 0:
+				P2 = self.make_hamming(ant_pop, item)
+				del ant_pop[:]
+				if P2 < F:
+					for j in range (0, GENE-1):
+						x = ((0.5 - self.alpha) * item[j] + self.alpha * average) / 100
+						model.append(x)
+				for j in range (0, GENE-1):
+					ant_pop.append(item[j])
+			aux += 1
+		return model
+				
+class slave():
+	def __init__(self, SIZE, alpha, mult_prob, mult_sh):
+		self.SIZE =  SIZE
+		self.alpha = alpha
+		self.mult_prob = mult_prob
+		self.mult_sh = mult_sh
+
+	#Gera e retorna um cromossomo
+	def init_gene(self):
+		llist_indi = []
+		for i in range(0, GENE):
+			pos = getrandbits(1) # pares entre 0 e 9
+			llist_indi.append(pos)
+
+		return llist_indi 
+
+	#inicializa e retorna uma  populacao
+	def init_new_pop(self, tam):
+		list_pop = []
+		for i in range(0, tam):
+			baby = self.init_gene()
+			if (baby in list_pop):#repita ate o individuo que o individuo gerado não exista na pop
+				while (baby in list_pop):
+					baby = self.init_gene()
+			else:
+				list_pop.append(baby)
+
+		return list_pop
+
+	def new_pop(self, set_models):
+		pop_model = []
+		for model in set_models:
+			new_pop = self.init_new_pop(len(set_models))
+			pop_model.append(new_pop)
+		return pop_model
+
+
+
+	def update_model(self, ind, p):
+		model = []
+		for i in range (0, len(ind)-1):
+			x = p[i]  * (1.0 - 0.05) + ind[i] * 0.05
+			var = random()
+			if (var < self.mult_prob):
+				x = p[i] * (1.0 - self.mult_sh) +  getrandbits(1) * (self.mult_sh)
+			model.append(x)
+		return model
+
 
 '''
 funcoes comuns -> organizar classe posteriormente
@@ -157,17 +415,17 @@ def convert_binary( binary):
 	return n
 
 #retorna a area de cobertura de uma antena
-def conv_radius_area():
-	area = pi * pow(RADIUS, 2)
+def conv_radius_area(radius):
+	area = pi * pow(radius, 2)
 	return (area/1000) #retorna area em km
 
 #calculo  de fitness de um individuo
-def calc_fitness(individuo):
+def calc_fitness(individuo, area, size_pop):
 	xradius = []
 	for i in range(15 ,22):
 		xradius.append(individuo[i])
 
-	obj = pop()
+	obj = pop(size_pop, area)
 	area_coverage = obj.area_hexa(convert_binary(xradius))
 
 	radian = []
@@ -188,30 +446,8 @@ def calc_fitness(individuo):
 	P_max = 255
 	n_sbr = 1.0
 
-	F_fit = (AREA - ( area_coverage / AREA ) ) + (sobre / AREA) + (P_tot / (n_sbr * P_max) )
+	F_fit = (area - ( area_coverage / area ) ) + (sobre / area) + (P_tot / (n_sbr * P_max) )
 	return F_fit
-
-#calcula a media da metade dos melhores individuos de uma populacao
-def mmm(population):
-	best = []
-	for i in range(0, len(population)):
-		best.append(0)
-	k = 0
-	for item in population:
-		best[k] = calc_fitness(item)
-		k+=1
-	best.sort()
-	som = 0;
-	lim = ceil(len(population)/ 2) 
-	i = 0
-	while i < lim:
-		val = best[i]
-		som += val
-		i+=1
-
-	som = som / lim;
-	return som;
-
 		
 def conv(n, flag):
 	x=n
@@ -228,7 +464,6 @@ def conv(n, flag):
 	else:
 		return k
 
-
 def fill_list_bin(list_str):
 	list_str = list_str[::-1]
 	list_aux = []
@@ -243,258 +478,35 @@ def fill_list_bin(list_str):
 		aux += 1
 
 	return list_aux
-
-
-class model():
-	def __init__(self, SIZE):
-		self.SIZE =  SIZE
-		self.alpha = 0.05
-		#define MUT_PROB 0.3
-		#define MUT_SH 0.04
-
-	def make_hamming(self, ind1, ind2):
-		#se P2 < F entao o individuo2 é usado para gerar outro modelo, senao avalia-se o proximo individuo
-		p = 0
-		for i in range (0, 54):
-			if ind1[i] == ind2[i]:
-				p+=1
-
-		P2 = (p * 100) / 54
-		return P2
-
-	def drop_pop(self, X):
-		list(P)
-		for i in range (0, self.SIZE):
-			P[i+1] = P[i] * (1.0 - self.alpha) + X[i] * self.alpha
-
-	def create_model(self, POP, average, F):
-		aux = 0
-		model = []
-		ant_pop = []
-		average = average / 10
-		for item in POP:
-			if aux == 0:
-				for j in range(0, self.SIZE):
-					x =  (((0.5 - self.alpha) * item[j] ) + (self.alpha * average)) / 100
-					model.append(x)
-					ant_pop.append(item[j])							
-			if aux > 0:
-				P2 = self.make_hamming(ant_pop, item)
-				del ant_pop[:]
-				if P2 < F:
-					for j in range (0, self.SIZE):
-						x = ((0.5 - self.alpha) * item[j] + self.alpha * average) / 100
-						model.append(x)
-				for j in range (0, self.SIZE):
-					ant_pop.append(item[j])
-			aux += 1
-		return model
-				
 		
+def graph(pop, title):
+	
+	for erb in pop:
+		if (erb[15]):
+			p = point_space(erb)
+			x, y = p
+			plt.scatter(x, y, s=100)
+			plt.grid(True)
+			plt.axis([0, 60, 0, 60])
+			plt.title(title)
+		else:
+			p = point_space(erb)
+			x, y = p
+			plt.scatter(x, y, s=100, color='r')
+			plt.grid(True)
+			plt.axis([0, 60, 0, 60])
+			plt.title(title)
 
-
-
-
-
-'''
-criacao dos modelos probabilisticos
-tem como parametros a matiz de populacao
-matriz do modelo
-F -> porcentagem de similaridade (25, 50, 75 ou 100)
-average -> media da metade dos melhores de cada populacao
-retorna a quantidade de modelos criados para cada populacao
-'''
-
+	
+	plt.show()
 
 
 def main():
 
-
-	ini = time.time()
-	comm = MPI.COMM_WORLD
-	rank = comm.Get_rank()
-	#random.seed() #inicia a semente dos número pseudo randômicos
-
-	if rank == 0:
-		'''
-		inicialize as populacoes
-		calcule a media da metade dos melhores indiduos
-		crie os modelos variando entre 25%, 50%, 75%  e 100%
-		envie para cada escravo seu modelo correspondente
-		'''
-		print('mestre')
-		obj = pop()
-		POP_1 = obj.init_n_pop()
-		POP_2 = obj.init_n_pop()
-		POP_3 = obj.init_n_pop()
-		POP_4 = obj.init_n_pop()
-		llist_mmm = obj.cal_mmm_populations(POP_1, POP_2, POP_3, POP_4)
-
-		obm = model(54)
-		model_1 = obm.create_model(POP_1, llist_mmm[0], 25)
-		model_2 = obm.create_model(POP_2, llist_mmm[1], 50)
-		model_3 = obm.create_model(POP_3, llist_mmm[2], 75)
-		print(llist_mmm[2])
-		
-		print('enviado', len(model_1), 'para escravo 1')
-		comm.send(model_1,dest=1,tag=1)
-		print('enviado', len(model_2), 'para escravo 2')
-		comm.send(model_2,dest=2,tag=2)
-		print('enviado', len(model_3), 'para escravo 3')
-		comm.send(model_3,dest=3,tag=3)
-
-		data_1 = comm.recv(source=1, tag=1)
-		data_2 = comm.recv(source=2, tag=2)
-		data_3 = comm.recv(source=3, tag=3)
-	
-		fit1 = calc_fitness(data_1)
-		fit2 = calc_fitness(data_2)
-		fit3 = calc_fitness(data_3)
-
-		if (fit1 < fit2):
-			if (fit2 < fit3):
-				print('1 , 2, 3')
-
-			if (fit3 < fit2):
-				print('1 , 3, 2')
-
-			if (fit3 < fit1):
-				print('3, 1, 2')
-
-		if (fit2 < fit1):
-			if (fit1 < fit3):
-				print('2 , 1, 3')
-
-			if (fit3 < fit1):
-				print('2, 3, 1')
-
-			if (fit3 < fit2):
-				print('3, 2, 1')
-
-
-
-
-		fim = time.time()
-
-		print("time", (fim - ini)/60)
-	if rank == 1:
-		data = comm.recv(source=0, tag=1)
-		print('escravo 1')
-		counter = 0
-		while counter < 10:
-			lista = new_pop(data)
-			bests = []
-			for item in lista:
-				best = 0
-				individuo = item
-				for elemento in item:
-					fit = calc_fitness(elemento)
-					if fit > best:
-						best = fit
-						individuo = elemento
-				bests.append(individuo)
-		
-				
-			bestall = bests[0]
-			data = update_model(bestall, data)
-			counter += 1
-		print('o 1 envia ', bestall)
-		comm.send(bestall,dest=0,tag=1)
-	
-	if rank == 2:
-		data = comm.recv(source=0, tag=2)
-		print('escravo 2')
-		lista = new_pop(data)
-		counter = 0
-		while counter < 10:
-			lista = new_pop(data)
-			bests = []
-			for item in lista:
-				best = 0
-				individuo = item
-				for elemento in item:
-					fit = calc_fitness(elemento)
-					if fit > best:
-						best = fit
-						individuo = elemento
-				bests.append(individuo)
-		
-				
-			bestall = bests[0]
-			data = update_model(bestall, data)
-			counter += 1
-
-		comm.send(bestall,dest=0,tag=2)
-		print('modelos', len(data), 'populacoes', len(lista))
-
-	if rank == 3:
-		data = comm.recv(source=0, tag=3)
-		print('escravo 3')
-		lista = new_pop(data)
-		counter = 0
-		while counter < 10:
-
-			lista = new_pop(data)
-			bests = []
-			for item in lista:
-				best = 0
-				individuo = item
-				for elemento in item:
-					fit = calc_fitness(elemento)
-					if fit > best:
-						best = fit
-						individuo = elemento
-				bests.append(individuo)
-		
-				
-			bestall = bests[0]
-			data = update_model(bestall, data)
-			counter += 1
-		comm.send(bestall,dest=0,tag=3)
-
-def new_pop(set_models):
-	pop_model = []
-	for model in set_models:
-		new_pop = init_new_pop(len(set_models))
-		pop_model.append(new_pop)
-	return pop_model
-
-
-#Gera e retorna um cromossomo
-def init_gene():
-	llist_indi = []
-	for i in range(1, 55):
-		pos = getrandbits(1) # pares entre 0 e 9
-		llist_indi.append(pos)
-
-	return llist_indi 
-
-#inicializa e retorna uma  populacao
-def init_new_pop(tam):
-	list_pop = []
-	for i in range(0, tam):
-		baby = init_gene()
-		if (baby in list_pop):#repita ate o individuo que o individuo gerado não exista na pop
-			while (baby in list_pop):
-				baby = init_gene()
-		else:
-			list_pop.append(baby)
-
-	return list_pop
-
-
-def update_model(ind, p):
-	model = []
-	for i in range (0, len(ind)):
-		x = p[i]  * (1.0 - 0.05) + ind[i] * 0.05
-		var = random()
-		if (var < MUT_PROB):
-			x = p[i] * (1.0 - MUT_SH) +  getrandbits(1) * (MUT_SH)
-		model.append(x)
-	return model
-
-       
-
+	app = QtGui.QApplication(sys.argv)
+	main_window = mid()
+	main_window.show()
+	app.exec_()
 
 if __name__ == '__main__':
 	main()
