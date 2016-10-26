@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 from random import getrandbits, random
 from math import pi, pow, ceil
@@ -13,32 +13,18 @@ import interface as UI
 from PyQt4 import QtCore, QtGui
 import sys
 
+
+
 GENE = 55
-
-
-class mid(QtGui.QMainWindow, UI.Ui_main_win):
-	def __init__(self, parent=None):
-		super(mid,self).__init__(parent)
-		self.setupUi(self)
-		self.connect(self.btn_exe, QtCore.SIGNAL("clicked()"), self.execut)   
-	def execut(self):
-		AREA = int(self.lbl_valarea.text())
-		MUT_SH = float(self.lbl_valmultsh.text())
-		MUT_PROB = float(self.lbl_valmultprob.text())
-		ALPHA = float(self.lbl_valalpha.text())
-		SIZE_POP = int(self.spinBox.text())
-		print(AREA, MUT_SH, MUT_PROB, ALPHA, 'size pop', SIZE_POP)
-		init_exec(AREA, MUT_SH, MUT_PROB, ALPHA, 10)
+app = QtGui.QApplication(sys.argv)
 
 
 def init_exec(area, mult_sh, mult_prob, alpha, size_pop):
-	ini = time.time()
 	comm = MPI.COMM_WORLD
 	rank = comm.Get_rank()
-	print('init')
+	ini = time.time()
 
-	if rank == 0:
-		print('mestre')
+	if rank == 0:		
 		obj = pop(size_pop, area)
 		POP_1 = obj.init_n_pop()
 		POP_2 = obj.init_n_pop()
@@ -51,11 +37,11 @@ def init_exec(area, mult_sh, mult_prob, alpha, size_pop):
 		model_2 = obm.create_model(POP_2, llist_mmm[1], 50)
 		model_3 = obm.create_model(POP_3, llist_mmm[2], 75)
 		
-		print('enviado', len(model_1), 'para escravo 1')
+		#print('enviado', len(model_1), 'para escravo 1')
 		comm.send(model_1,dest=1,tag=1)
-		print('enviado', len(model_2), 'para escravo 2')
+		#print('enviado', len(model_2), 'para escravo 2')
 		comm.send(model_2,dest=2,tag=2)
-		print('enviado', len(model_3), 'para escravo 3')
+		#print('enviado', len(model_3), 'para escravo 3')
 		comm.send(model_3,dest=3,tag=3)
 		
 		data_1 = comm.recv(source=1, tag=1)
@@ -70,11 +56,10 @@ def init_exec(area, mult_sh, mult_prob, alpha, size_pop):
 
 
 		fim = time.time()
-
 		print("time", (fim - ini)/60)
+
 	if rank == 1:
 		data = comm.recv(source=0, tag=1)
-		print('escravo 1')
 		slave1 = slave(size_pop, alpha, mult_prob, mult_sh)
 		lista = slave1.new_pop(data)
 		counter = 0
@@ -99,7 +84,6 @@ def init_exec(area, mult_sh, mult_prob, alpha, size_pop):
 	
 	if rank == 2:
 		data = comm.recv(source=0, tag=2)
-		print('escravo 2')
 		slave2 = slave(size_pop, alpha, mult_prob, mult_sh)
 		lista = slave2.new_pop(data)
 		counter = 0
@@ -115,8 +99,7 @@ def init_exec(area, mult_sh, mult_prob, alpha, size_pop):
 						best = fit
 						individuo = elemento
 				bests.append(individuo)
-		
-				
+	
 			bestall = bests[0]
 			data = slave2.update_model(bestall, data)
 			counter += 1
@@ -125,7 +108,6 @@ def init_exec(area, mult_sh, mult_prob, alpha, size_pop):
 
 	if rank == 3:
 		data = comm.recv(source=0, tag=3)
-		print('escravo 3')
 		slave3 = slave(size_pop, alpha, mult_prob, mult_sh)
 		lista = slave3.new_pop(data)
 		counter = 0
@@ -142,7 +124,6 @@ def init_exec(area, mult_sh, mult_prob, alpha, size_pop):
 						individuo = elemento
 				bests.append(individuo)
 		
-				
 			bestall = bests[0]
 			data = slave3.update_model(bestall, data)
 			counter += 1
@@ -503,10 +484,20 @@ def graph(pop, title):
 
 def main():
 
-	app = QtGui.QApplication(sys.argv)
-	main_window = mid()
-	main_window.show()
-	app.exec_()
+	try:
+		with open('input.txt', 'r') as f:
+			inp = f.readlines()
+			mut_prob = float(inp[0])
+			mut_sh = float(inp[1])
+			alpha = float(inp[2])
+			area = int(inp[3])
+			size_pop = int(inp[4])
+			init_exec(area, mut_sh, mut_prob, alpha , size_pop)
+
+	except IOError:
+		init_exec(4000, 0.3, 0.04, 0.05, 50)
+
+
 
 if __name__ == '__main__':
 	main()

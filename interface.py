@@ -26,6 +26,7 @@ class Ui_main_win(object):
     def setupUi(self, main_win):
         main_win.setObjectName(_fromUtf8("main_win"))
         main_win.resize(519, 387)
+        main_win.setFixedSize(519, 387)
         icon = QtGui.QIcon()
         icon.addPixmap(QtGui.QPixmap(_fromUtf8("../../Imagens/antena.jpg")), QtGui.QIcon.Normal, QtGui.QIcon.Off)
         main_win.setWindowIcon(icon)
@@ -120,9 +121,9 @@ class Ui_main_win(object):
         main_win.setStatusBar(self.statusbar)
 
         self.retranslateUi(main_win)
-        QtCore.QObject.connect(self.dial_multprob, QtCore.SIGNAL(_fromUtf8("valueChanged(int)")), self.lbl_valmultprob.setNum)
-        QtCore.QObject.connect(self.dial_multsh, QtCore.SIGNAL(_fromUtf8("valueChanged(int)")), self.lbl_valmultsh.setNum)
-        QtCore.QObject.connect(self.dial_alpha, QtCore.SIGNAL(_fromUtf8("valueChanged(int)")), self.lbl_valalpha.setNum)
+        QtCore.QObject.connect(self.dial_multprob, QtCore.SIGNAL(_fromUtf8("valueChanged(int)")), self.myValChanged)
+        QtCore.QObject.connect(self.dial_multsh, QtCore.SIGNAL(_fromUtf8("valueChanged(int)")), self.myValChanged)
+        QtCore.QObject.connect(self.dial_alpha, QtCore.SIGNAL(_fromUtf8("valueChanged(int)")), self.myValChanged)
         QtCore.QObject.connect(self.slider_area, QtCore.SIGNAL(_fromUtf8("valueChanged(int)")), self.lbl_valarea.setNum)
         QtCore.QMetaObject.connectSlotsByName(main_win)
 
@@ -140,4 +141,16 @@ class Ui_main_win(object):
         self.lbl_valarea.setText(_translate("main_win", "1000", None))
         self.label_4.setText(_translate("main_win", " Parâmetros de Configuração:", None))
         self.btn_exe.setText(_translate("main_win", "Rodar Algoritmo", None))
+
+   
+    def myValChanged(self):
+        #print ("New spin val entered {0}".format(self.dial_multprob.value()))
+        mut_prob = float((self.dial_multprob.value())) / 100
+        self.lbl_valmultprob.setNum(mut_prob)
+
+        mut_sh = float((self.dial_multsh.value())) / 100
+        self.lbl_valmultsh.setNum(mut_sh)
+
+        alpha = float((self.dial_alpha.value())) / 100
+        self.lbl_valalpha.setNum(alpha)
 
